@@ -1,0 +1,98 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+
+use DBI;
+use DBD::Pg;
+use Getopt::Long;
+
+my $host = "localhost";
+my $port = "5432";
+my $user = "zabbix";
+my $database = "postgres";
+my $help;
+
+usage() if (!GetOptions(
+   "h=s" => \$host,
+   "p=s" => \$port,
+   "U=s" => \$user,
+   "d=s" => \$database,
+   'help!' => \$help
+   ) or defined $help);
+
+sub usage
+{
+   print "Unknown option: @_\n" if ( @_ );
+   print "Usage: $0 [-h <HOST>] [-p <PORT>] [-U <USER>] [-d <DATABASE>] [--help]\n";
+
+   exit;
+}
+
+sub queryValue
+{
+   my ($dbh, $query, $key) = @_;
+
+   my $value = $dbh->selectrow_array($query);
+
+   return $value;
+}
+
+sub printValue
+{
+   my ($key, $value) = @_;
+
+   if ($value eq "") {
+      $value = "\"\"";
+   }
+
+   print("- $key $value\n");
+}
+
+my $dbh = DBI->connect("DBI:Pg:dbname=$database;host=$host;port=$port", $user, undef, {
+   AutoCommit => 0,
+   RaiseError => 1,
+   PrintError => 0
+}) or die DBI->errstr;
+
+my $version = queryValue($dbh, "SELECT version()");
+$version =~ /PostgreSQL (\d+\.\d+)\.(\d+)/;
+my ($major, $minor) = ($1,$2);
+
+my $databases = $dbh->selectcol_arrayref("SELECT datname FROM pg_database WHERE datistemplate = 'f'");
+$dbh->disconnect;
+
+foreach my $database (@$databases) {
+   $dbh = DBI->connect("DBI:Pg:dbname=$database;host=$host;port=$port", $user, undef, {
+      AutoCommit => 0,
+      RaiseError => 1,
+      PrintError => 0
+   }) or die DBI->errstr;
+
+   my $rows = $dbh->selectall_arrayref("SELECT schemaname, tablename FROM pg_tables WHERE schemaname NOT IN ('pg_catalog','information_schema')");
+   foreach my $row (@$rows) {
+      my $schema = $row->[0];
+      my $table = $row->[1];
+
+      printValue("pgsql.table.cache_hit_ratio[$database,$schema,$table]", queryValue($dbh, "SELECT ROUND(heap_blks_hit*100/(heap_blks_hit+heap_blks_read), 2) AS cache_hit_ratio FROM pg_statio_user_tables WHERE schemaname='$schema' AND relname='$table' AND heap_blks_read>0 UNION ALL SELECT 0.00 AS cache_hit_ratio ORDER BY cache_hit_ratio DESC LIMIT 1"));
+
+      printValue("pgsql.table.seq_scan[$database,$schema,$table]", queryValue($dbh, "SELECT seq_scan FROM pg_stat_user_tables WHERE schemaname='$schema' AND relname='$table'"));
+      printValue("pgsql.table.idx_scan[$database,$schema,$table]", queryValue($dbh, "SELECT COALESCE(idx_scan,0) FROM pg_stat_user_tables WHERE schemaname='$schema' AND relname='$table'"));
+      
+      printValue("pgsql.table.vacuum_count[$database,$schema,$table]", queryValue($dbh, "SELECT vacuum_count FROM pg_stat_user_tables WHERE schemaname='$schema' AND relname='$table'"));
+      printValue("pgsql.table.analyze_count[$database,$schema,$table]", queryValue($dbh, "SELECT analyze_count FROM pg_stat_user_tables WHERE schemaname='$schema' AND relname='$table'"));
+      printValue("pgsql.table.autovacuum_count[$database,$schema,$table]", queryValue($dbh, "SELECT autovacuum_count FROM pg_stat_user_tables WHERE schemaname='$schema' AND relname='$table'"));
+      printValue("pgsql.table.autoanalyze_count[$database,$schema,$table]", queryValue($dbh, "SELECT autoanalyze_count FROM pg_stat_user_tables WHERE schemaname='$schema' AND relname='$table'"));
+      
+      printValue("pgsql.table.n_tup_ins[$database,$schema,$table]", queryValue($dbh, "SELECT n_tup_ins FROM pg_stat_user_tables WHERE schemaname='$schema' AND relname='$table'"));
+      printValue("pgsql.table.n_tup_upd[$database,$schema,$table]", queryValue($dbh, "SELECT n_tup_upd FROM pg_stat_user_tables WHERE schemaname='$schema' AND relname='$table'"));
+      printValue("pgsql.table.n_tup_del[$database,$schema,$table]", queryValue($dbh, "SELECT n_tup_del FROM pg_stat_user_tables WHERE schemaname='$schema' AND relname='$table'"));
+      printValue("pgsql.table.seq_tup_read[$database,$schema,$table]", queryValue($dbh, "SELECT seq_tup_read FROM pg_stat_user_tables WHERE schemaname='$schema' AND relname='$table'"));
+      printValue("pgsql.table.idx_tup_fetch[$database,$schema,$table]", queryValue($dbh, "SELECT COALESCE(idx_tup_fetch,0) FROM pg_stat_user_tables WHERE schemaname='$schema' AND relname='$table'"));
+      printValue("pgsql.table.n_tup_hot_upd[$database,$schema,$table]", queryValue($dbh, "SELECT n_tup_hot_upd FROM pg_stat_user_tables WHERE schemaname='$schema' AND relname = '$table'"));
+      printValue("pgsql.table.n_live_tup[$database,$schema,$table]", queryValue($dbh, "SELECT n_live_tup FROM pg_stat_user_tables WHERE schemaname='$schema' AND relname='$table'"));
+      printValue("pgsql.table.n_dead_tup[$database,$schema,$table]", queryValue($dbh, "SELECT n_dead_tup FROM pg_stat_user_tables WHERE schemaname='$schema' AND relname='$table'"));
+   }
+
+   $dbh->disconnect;
+}

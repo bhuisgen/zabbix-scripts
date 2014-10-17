@@ -1,0 +1,32 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+
+unless (-x "/usr/sbin/mpt-status") {
+   print "{\n";
+   print "\t\"data\":[]\n";
+   print "}\n";
+   exit
+}
+
+my $first = 1;
+
+print "{\n";
+print "\t\"data\":[\n";
+
+for (`sudo /usr/sbin/mpt-status -s|grep -o -E "^log_id [0-9]+"|cut -d' ' -f2|sort`)
+{
+   chomp $_;
+   my $volume = $_;
+
+   print "\t,\n" if not $first;
+   $first = 0;
+
+   print "\t{\n";
+   print "\t\t\"{#VOLUME}\":\"$volume\"\n";
+   print "\t}\n";
+}
+
+print "\t]\n";
+print "}\n";

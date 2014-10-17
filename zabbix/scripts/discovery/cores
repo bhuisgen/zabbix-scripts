@@ -1,0 +1,25 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+
+my $cores = `lscpu | grep "Core(s) per socket:" | awk '{print \$NF}'`;
+$cores = $cores - 1;
+
+my $first = 1;
+
+print "{\n";
+print "\t\"data\":[\n";
+
+foreach my $core ($cores)
+{
+   print "\t,\n" if not $first;
+   $first = 0;
+
+   print "\t{\n";
+   print "\t\t\"{#COREID}\":\"$core\"\n";
+   print "\t}\n";
+}
+
+print "\t]\n";
+print "}\n";

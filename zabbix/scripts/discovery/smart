@@ -1,0 +1,34 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+
+unless (-x "/usr/sbin/smartctl") {
+   print "{\n";
+   print "\t\"data\":[]\n";
+   print "}\n";
+   exit
+}
+
+my $first = 1;
+
+print "{\n";
+print "\t\"data\":[\n";
+
+for (`ls -l /dev/sd* | awk '{print \$NF}' | sed 's/[0-9]//g' | uniq`)
+{
+   chomp $_;
+   my $disk = $_;
+   my $diskname = substr $disk, 5;
+
+   print "\t,\n" if not $first;
+   $first = 0;
+
+   print "\t{\n";
+   print "\t\t\"{#DISK}\":\"$disk\",\n";
+   print "\t\t\"{#DISKNAME}\":\"${diskname}\"\n";
+   print "\t}\n";
+}
+
+print "\t]\n";
+print "}\n";

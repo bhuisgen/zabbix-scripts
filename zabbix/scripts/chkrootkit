@@ -1,0 +1,37 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+
+use Getopt::Long;
+
+my $chkrootkit = "sudo /usr/sbin/chkrootkit";
+
+my $debug;
+my $help;
+
+usage() if (!GetOptions(
+      'debug!' => \$debug,
+      'help!' => \$help,
+      ) or defined $help);
+
+sub usage
+{
+   print "Unknown option: @_\n" if ( @_ );
+   print "Usage: $0 [--debug] [--help]\n";
+
+   exit;
+}
+
+print "DEBUG: checking report\n" if $debug;
+open CHKROOTKIT,"$chkrootkit |" or exit 3;
+while (<CHKROOTKIT>) {
+   next unless /INFECTED|Violations/;
+
+   print "$1\n";
+   exit 0;
+}
+close CHKROOTKIT;
+
+print "0\n";
+exit 0;

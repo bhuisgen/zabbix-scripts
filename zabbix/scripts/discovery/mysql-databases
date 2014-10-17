@@ -1,0 +1,17 @@
+#!/bin/sh
+
+export HOME=/var/lib/zabbix
+
+DEFAULTS_FILE=/var/lib/zabbix/.my.cnf
+
+CONFIG_FILE=/etc/zabbix/scripts/trapper/mysql.conf
+
+[ -r "$CONFIG_FILE" ] && . $CONFIG_FILE
+
+GETDB="SELECT table_schema FROM information_schema.TABLES WHERE table_schema NOT IN ('information_schema', 'performance_schema') GROUP BY table_schema";
+
+for db in $(mysql --defaults-file=${DEFAULTS_FILE} -e "${GETDB}" --skip-column-name 2> /dev/null); do
+    data="$data,"'{"{#DATABASE}":"'$db'"}'
+done
+
+echo '{"data":['${data#,}' ]}'

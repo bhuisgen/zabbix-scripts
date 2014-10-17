@@ -1,0 +1,20 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+
+my ($iptables) = 'sudo /sbin/iptables';
+
+my (@output) = `$iptables -L -t filter -n`;
+if ($? != 0) {
+   exit 1;
+}
+
+my ($count) = $#output + 1;
+$count -= 8;
+if ($count < 0) {
+   $count = 0;
+}
+
+print "$count\n";
+exit 0;

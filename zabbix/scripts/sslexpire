@@ -1,0 +1,60 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+
+use Getopt::Long;
+use Net::SSL::ExpireDate;
+use Switch;
+
+my $cert;
+my $type = "https";
+my $warning = 2;
+my $critical = 1;
+my $high = 1;
+my $help;
+
+usage() if (!GetOptions(
+  "type=s" => \$type,
+  "help!" => \$help,
+) or defined $help);
+
+if (!@ARGV) {
+    usage();
+}
+
+$cert = $ARGV[0];
+
+sub usage
+{
+  print "Unknown option: @_\n" if ( @_ );
+  print "Usage: $0 <CERT> [--type <TYPE>] [--warning <COUNT>] [--critical <COUNT>] [--help]\n";
+
+  exit 1;
+}
+
+my $ed;
+
+switch ($type) {
+  case "https" { $ed = Net::SSL::ExpireDate->new(https => $cert); }
+  case "ssl" { $ed = Net::SSL::ExpireDate->new(ssl => $cert); }
+  case "file" { $ed = Net::SSL::ExpireDate->new(file => $cert); }
+  else { exit 2; }
+}
+
+if (not defined $ed->expire_date) {
+  exit 3;
+}
+
+if ($ed->is_expired) {
+  print "3\n";
+}
+elsif ($ed->is_expired(DateTime::Duration->new(months=> $critical))) {
+  print "2\n";
+}
+elsif ($ed->is_expired(DateTime::Duration->new(months=> $warning))) {
+  print "1\n";
+}
+else {
+  print "0\n";  
+}

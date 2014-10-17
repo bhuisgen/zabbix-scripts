@@ -1,0 +1,55 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+
+use DBI;
+use DBD::Pg;
+use Getopt::Long;
+
+my $host = "localhost";
+my $port = "5432";
+my $user = "zabbix";
+my $database = "postgres";
+my $help;
+
+usage() if (!GetOptions(
+   "h=s" => \$host,
+   "p=s" => \$port,
+   "U=s" => \$user,
+   "d=s" => \$database,
+   'help!' => \$help
+   ) or defined $help);
+
+sub usage
+{
+   print "Unknown option: @_\n" if ( @_ );
+   print "Usage: $0 [-h <HOST>] [-p <PORT>] [-U <USER>] [-d <DATABASE>] [--help]\n";
+
+   exit;
+}
+
+my $dbh = DBI->connect("DBI:Pg:dbname=$database;host=$host;port=$port", $user, undef, {
+   AutoCommit => 0,
+   RaiseError => 1,
+   PrintError => 0
+}) or die DBI->errstr;
+
+$dbh->{HandleError} = sub {
+   my $error = shift;
+
+   print "0";
+   exit 1;
+};
+
+my $value = selectrow_array("SELECT 1");
+
+$dbh->disconnect;
+
+if ($value != "1") {
+   print "0"
+   exit;
+}
+
+print "1"
+exit;

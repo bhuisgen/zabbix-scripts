@@ -1,0 +1,19 @@
+#!/bin/sh
+
+ZABBIX_SENDER=/usr/bin/zabbix_sender
+ZABBIX_CONF=/etc/zabbix/zabbix_agentd.conf
+
+CONFIG_FILE=/etc/zabbix/scripts/trapper/redis.conf
+
+[ -r "$CONFIG_FILE" ] && . $CONFIG_FILE
+
+zsendall () {
+	echo "$1"|$ZABBIX_SENDER -c $ZABBIX_CONF -i - 2>&1 >/dev/null
+}
+
+RET=$(/etc/zabbix/scripts/redis-databases)
+if [ "$?" -ne "0" ]; then
+   exit 1
+fi
+
+zsendall "$RET"

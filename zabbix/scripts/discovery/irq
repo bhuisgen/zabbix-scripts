@@ -1,0 +1,49 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+
+my ($count) = 0;
+my ($line);
+my (@values);
+my ($cpus);
+my ($irq, $label);
+
+print "{\n";
+print "\t\"data\":[\n";
+
+open IRQ,"cat /proc/interrupts|" or exit 1;
+while (<IRQ>) {
+   $count++;
+   $line = $_;
+
+   if ($count == 1) {
+      $cpus =()= $_ =~ /(\w+)/g;
+
+      next;
+   }
+
+   @values = split(' ', $line, $cpus + 3);
+   chomp @values;
+
+   $irq = shift @values;
+   chop $irq;
+
+   $label = join(" ",@values[$cpus..$#values]);
+   if ($label eq '') {
+      $label = $irq;
+   }
+
+   if ($count > 2) {
+      print "\t,\n";
+   }
+
+   print "\t{\n";
+   print "\t\t\"{#IRQ}\":\"" . $irq . "\",\n";
+   print "\t\t\"{#IRQ_LABEL}\":\"" . $label . "\"\n";
+   print "\t}\n";
+}
+close IRQ;
+
+print "\t]\n";
+print "}\n";

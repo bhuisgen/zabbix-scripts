@@ -1,0 +1,69 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+
+use DBI;
+use Getopt::Long;
+
+my $config = "$ENV{'HOME'}/.my.cnf";
+my $help;
+
+usage() if (!GetOptions(
+   "config=s" => \$config,
+   "help!" => \$help
+   ) or defined $help);
+
+sub usage
+{
+   print "Unknown option: @_\n" if ( @_ );
+   print "Usage: $0 [--config <MYSQL_FILE>] [--help]\n";
+
+   exit;
+}
+
+my $dbh = DBI->connect("DBI:mysql:;mysql_read_default_file=$config", undef, undef, {
+   AutoCommit => 0,
+   RaiseError => 1,
+   PrintError => 0
+}) or die DBI->errstr;
+
+my $results;
+my $key;
+my $value;
+my $row;
+
+$results = $dbh->selectall_hashref("SHOW GLOBAL VARIABLES", 1);
+foreach $key (keys %$results) {
+   $value = $results->{$key}{Value};
+
+   if ($value eq "") {
+      $value = "\"\"";
+   }
+
+   print("- mysql.variables[$key] $value\n")
+}
+
+$results = $dbh->selectall_hashref("SHOW GLOBAL STATUS", 1);
+foreach $key (keys %$results) {
+   $value = $results->{$key}{Value};
+
+   if ($value eq "") {
+      $value = "\"\"";
+   }
+
+   print("- mysql.status[$key] $value\n")
+}
+
+$results = $dbh->selectall_arrayref("SHOW MASTER STATUS", { Slice => {} });
+foreach $row (@$results) {
+   my $pos = $row->{Position};
+
+   if ($pos eq "") {
+      $pos = "\"\"";
+   }
+
+   print("- mysql.master.binlog_pos $pos\n");
+}
+
+$dbh->disconnect;

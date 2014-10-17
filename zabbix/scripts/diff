@@ -1,0 +1,118 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+
+use Getopt::Long;
+
+my $list = "";
+my $servers = "";
+my $debug;
+my $help;
+
+usage() if ((@ARGV+1 < 4) or
+   !GetOptions(
+      'L=s' => \$list,
+      'S=s' => \$servers,
+      'debug!' => \$debug,
+      'help!' => \$help,
+      ) or defined $help);
+
+sub usage
+{
+   print "Unknown option: @_\n" if ( @_ );
+   print "Usage: $0 -L <FILE> -S <HOST1>[,<HOST2> ...] [--debug] [--help]\n";
+
+   exit;
+}
+
+sub checkFile
+{
+   my ($file, $server) = @_;
+
+   print "DEBUG: check on $file $server\n" if $debug;
+
+   if (! -e $file) {
+      print "DEBUG: failed to find local file, assuming different\n" if $debug;
+
+      return 1;
+   }
+   
+   my ($out, $sum1, $sum2);
+
+   $out=`md5sum $file 2>/dev/null`;
+   if ($? != 0) {
+      print "DEBUG: failed to get local checksum, assuming different\n" if $debug;
+
+      return 1;
+   }
+
+   $sum1=`echo "$out"|awk '{print \$1}' 2>&1`;
+   if ($? != 0) {
+      print "DEBUG: failed to get local checksum, assuming different\n" if $debug;
+
+      return 1;
+   }
+
+   $out=`ssh $server md5sum $file 2>/dev/null`;
+   if ($? != 0) {
+      print "DEBUG: failed to get remote checksum, assuming different\n" if $debug;
+
+      return 1;
+   }
+
+   $sum2=`echo "$out"|awk '{print \$1}' 2>&1`;
+   if ($? != 0) {
+      print "DEBUG: failed to get remote checksum, assuming different\n" if $debug;
+
+      return 1;
+   }
+
+   chomp $sum1;
+   chomp $sum2;
+   if ($sum1 ne $sum2) {
+      print "DEBUG: checksums are different\n" if $debug;
+
+      return 1;
+   }
+
+   return 0;
+}
+
+my @servers = split(",", $servers);
+my $count = 0;
+
+open LIST,$list or exit 1;
+while (<LIST>) {
+   next if ($_ =~ m/^\s*$/);
+   next if ($_ =~ m/^\s*#/);
+
+   chomp $_;
+
+   my $file = $_;
+   print "LIST: $file\n" if $debug;
+
+   foreach (@servers) {
+      my $server = $_;
+      print "DEBUG: checking server $server\n" if $debug;
+
+      if (-d $file) {
+        my $dir = $file;
+
+        opendir(DIR, $dir) or exit 2;
+        my @files = readdir DIR;
+        closedir(DIR);
+
+        foreach $file (@files) {
+           next unless (-f "$dir/$file");
+
+           $count += checkFile("$dir/$file", $server);
+        }
+      } else {
+         $count += checkFile($file, $server);
+      }
+   }
+}
+close LIST;
+
+print $count . "\n";

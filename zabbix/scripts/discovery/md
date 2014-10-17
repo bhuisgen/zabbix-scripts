@@ -1,0 +1,34 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+
+unless (-e "/proc/mdstat") {
+   print "{\n";
+   print "\t\"data\":[]\n";
+   print "}\n";
+   exit
+}
+
+my $first = 1;
+
+print "{\n";
+print "\t\"data\":[\n";
+
+for (`find /dev -type b -name 'md*' -print 2>/dev/null`)
+{
+   chomp $_;
+   my $md = $_;
+   my $mdname = substr $md, 5;
+
+   print "\t,\n" if not $first;
+   $first = 0;
+
+   print "\t{\n";
+   print "\t\t\"{#MD}\":\"$md\",\n";
+   print "\t\t\"{#MDNAME}\":\"${mdname}\"\n";
+   print "\t}\n";
+}
+
+print "\t]\n";
+print "}\n";

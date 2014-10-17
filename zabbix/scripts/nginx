@@ -1,0 +1,42 @@
+#!/usr/bin/perl
+
+use LWP::UserAgent;
+
+if ($#ARGV+1 != 2) {
+   print("Usage: nginx <ITEM> <URL>\n");
+
+   exit;
+}
+
+my $item = $ARGV[0];
+my $url = $ARGV[1];
+
+my $ua = LWP::UserAgent->new(timeout => 15);
+my $response = $ua->request(HTTP::Request->new('GET', $url));
+
+if ($response->is_success) {
+   my %values;
+
+   foreach (split(/\n/, $response->content)) {
+      $values{"active"} = $1 if (/^Active connections:\s+(\d+)/);
+	
+      if (/^Reading:\s+(\d+).*Writing:\s+(\d+).*Waiting:\s+(\d+)/) {
+         $values{"reading"} = $1;
+         $values{"writing"} = $2;
+         $values{"waiting"} = $3;
+      }
+        
+      if (/^\s+(\d+)\s+(\d+)\s+(\d+)/) {
+         $values{"requests"} = $3;
+      }
+   }
+
+   if (exists $values{$item}) {
+      print "$values{$item}\n";
+      exit 0;
+   } else {
+      exit 1;
+   }
+}
+
+exit 1

@@ -1,0 +1,23 @@
+#!/bin/sh
+
+ZABBIX_SENDER=/usr/bin/zabbix_sender
+ZABBIX_CONF=/etc/zabbix/zabbix_agentd.conf
+
+BACKUP_DIR=/home/backups/hosts
+BACKUP_DAYS=1
+
+CONFIG_FILE=/etc/zabbix/scripts/trapper/backup.conf
+
+[ -r "$CONFIG_FILE" ] && . $CONFIG_FILE
+
+zsend () {
+   $ZABBIX_SENDER -c $ZABBIX_CONF -k "$1" -o "$2" 2>&1 >/dev/null
+}
+
+KEY="custom."`basename $0`
+VALUE=$(sudo /etc/zabbix/scripts/backup --directory $BACKUP_DIR --days $BACKUP_DAYS)
+if [ "$?" -ne "0" ]; then
+   exit 1
+fi
+
+zsend $KEY $VALUE

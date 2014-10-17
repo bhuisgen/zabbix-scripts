@@ -1,0 +1,6 @@
+[Agent]
+LogFile = syslog
+Server = 192.168.56.2 
+ServerActive = 192.168.56.2
+StartAgents = 1
+Include = /etc/zabbix/zabbix_agentd.conf.d/

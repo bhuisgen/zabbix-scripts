@@ -1,0 +1,41 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+
+use Getopt::Long;
+use Redis;
+
+my $socket = "/var/run/redis/redis.sock";
+my $help;
+
+usage() if (!GetOptions(
+    "socket=s" => \$socket,
+    "help!" => \$help,
+) or defined $help);
+
+sub usage
+{
+    print "Unknown option: @_\n" if ( @_ );
+    print "Usage: $0 [--socket <FILE>] [--help]\n";
+
+    exit;
+}
+
+my $r = Redis->new(sock => $socket, read_timeout => 5);
+my $info_hash = $r->info;
+
+while (my ($key, $val) = each %{$info_hash}) {
+	next unless $key =~ /^db(.+)/;
+
+	my $db = $1;
+
+	next unless $val =~ /keys=([^,]+),expires=([^,]+)(,avg_ttl=(.+))?/;
+
+	print "- redis.database.keys[$db] $1\n";
+	print "- redis.database.expires[$db] $2\n";
+
+	if (defined $4) {
+		print "- redis.database.avg_ttl[$db] $4\n";
+	}
+}

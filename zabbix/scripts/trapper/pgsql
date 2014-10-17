@@ -1,0 +1,24 @@
+#!/bin/sh
+
+ZABBIX_SENDER=/usr/bin/zabbix_sender
+ZABBIX_CONF=/etc/zabbix/zabbix_agentd.conf
+
+PGSQL_HOST=localhost
+PGSQL_PORT=5432
+PGSQL_USER=zabbix
+PGSQL_DATABASE=postgres
+
+CONFIG_FILE=/etc/zabbix/scripts/trapper/pgsql.conf
+
+[ -r "$CONFIG_FILE" ] && . $CONFIG_FILE
+
+zsendall () {
+	echo "$1"|$ZABBIX_SENDER -c $ZABBIX_CONF -i - 2>&1 >/dev/null
+}
+
+RET=$(/etc/zabbix/scripts/pgsql -h $PGSQL_HOST -p $PGSQL_PORT -U $PGSQL_USER -d $PGSQL_DATABASE)
+if [ "$?" -ne "0" ]; then
+   exit 1
+fi
+
+zsendall "$RET"

@@ -1,0 +1,53 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+
+use Getopt::Long;
+use JSON::Parse 'parse_json';
+use LWP::UserAgent;
+
+my $url = "http://127.0.0.1:9200/_status";
+my $help;
+
+usage() if (!GetOptions(
+    'url=s' => \$url,
+    'help!' => \$help,
+) or defined $help);
+
+sub usage
+{
+    print "Unknown option: @_\n" if ( @_ );
+    print "Usage: $0 [--url <STATUS_URL>] [--help]\n";
+
+    exit;
+}
+
+my $ua = LWP::UserAgent->new(timeout => 15);
+my $response = $ua->request(HTTP::Request->new('GET', $url));
+if (!$response->is_success) {
+    exit 1;
+}
+
+my $data = parse_json($response->content);
+if (not defined $data) {
+	exit 2;
+}
+
+my $first = 1;
+
+print "{\n";
+print "\t\"data\":[\n";
+
+foreach my $index (keys %{$data->{indices}})
+{
+    print "\t,\n" if not $first;
+    $first = 0;
+
+    print "\t{\n";
+    print "\t\t\"{#INDEX}\":\"$index\"\n";
+    print "\t}\n";
+}
+
+print "\t]\n";
+print "}\n";

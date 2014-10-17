@@ -1,0 +1,86 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+
+use DBI;
+use DBD::Pg;
+use Getopt::Long;
+
+my $host = "localhost";
+my $port = "5432";
+my $user = "zabbix";
+my $database = "postgres";
+my $help;
+
+usage() if (!GetOptions(
+   "h=s" => \$host,
+   "p=s" => \$port,
+   "U=s" => \$user,
+   "d=s" => \$database,
+   'help!' => \$help
+   ) or defined $help);
+
+sub usage
+{
+   print "Unknown option: @_\n" if ( @_ );
+   print "Usage: $0 [-h <HOST>] [-p <PORT>] [-U <USER>] [-d <DATABASE>] [--help]\n";
+
+   exit;
+}
+
+sub queryValue
+{
+   my ($dbh, $query, $key) = @_;
+
+   my $value = $dbh->selectrow_array($query);
+
+   return $value;
+}
+
+sub printValue
+{
+   my ($key, $value) = @_;
+
+   if ($value eq "") {
+      $value = "\"\"";
+   }
+
+   print("- $key $value\n");
+}
+
+my $dbh = DBI->connect("DBI:Pg:dbname=$database;host=$host;port=$port", $user, undef, {
+   AutoCommit => 0,
+   RaiseError => 1,
+   PrintError => 0
+}) or die DBI->errstr;
+
+my $version = queryValue($dbh, "SELECT version()");
+$version =~ /PostgreSQL (\d+\.\d+)\.(\d+)/;
+my ($major, $minor) = ($1,$2);
+
+my $databases = $dbh->selectcol_arrayref("SELECT datname FROM pg_database WHERE datistemplate = 'f'");
+foreach my $database (@$databases) {   
+   printValue("pgsql.database.connections[$database]", queryValue($dbh, "SELECT numbackends FROM pg_stat_database WHERE datname='$database'"));  
+   printValue("pgsql.database.size[$database]", queryValue($dbh, "SELECT pg_database_size('$database')"));
+   
+   printValue("pgsql.database.xact_commit[$database]", queryValue($dbh, "SELECT xact_commit FROM pg_stat_database WHERE datname='$database'"));
+   printValue("pgsql.database.xact_rollback[$database]", queryValue($dbh, "SELECT xact_rollback FROM pg_stat_database WHERE datname='$database'"));
+
+   printValue("pgsql.database.tup_returned[$database]", queryValue($dbh, "SELECT tup_returned FROM pg_stat_database WHERE datname='$database'"));
+   printValue("pgsql.database.tup_fetched[$database]", queryValue($dbh, "SELECT tup_fetched FROM pg_stat_database WHERE datname='$database'"));
+   printValue("pgsql.database.tup_inserted[$database]", queryValue($dbh, "SELECT tup_inserted FROM pg_stat_database WHERE datname='$database'"));
+   printValue("pgsql.database.tup_updated[$database]", queryValue($dbh, "SELECT tup_updated FROM pg_stat_database WHERE datname='$database'"));
+   printValue("pgsql.database.tup_deleted[$database]", queryValue($dbh, "SELECT tup_deleted FROM pg_stat_database WHERE datname='$database'"));
+   
+   printValue("pgsql.database.cache_hit_ratio[$database]", queryValue($dbh, "SELECT ROUND(blks_hit*100/(blks_hit+blks_read), 2) AS cache_hit_ratio FROM pg_stat_database WHERE datname='$database' AND blks_read>0 UNION ALL SELECT 0.00 AS cache_hit_ratio ORDER BY cache_hit_ratio DESC LIMIT 1"));
+
+   unless ($major ~~ ["9.1"]) {
+      printValue("pgsql.database.deadlocks[$database]", queryValue($dbh, "SELECT deadlocks FROM pg_stat_database WHERE datname = '$database'"));
+
+      printValue("pgsql.database.temp_files[$database]", queryValue($dbh, "SELECT temp_files FROM pg_stat_database WHERE datname = '$database'"));
+      printValue("pgsql.database.temp_bytes[$database]", queryValue($dbh, "SELECT temp_bytes FROM pg_stat_database WHERE datname = '$database'"));
+   }
+}
+
+$dbh->disconnect;

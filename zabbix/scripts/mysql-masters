@@ -1,0 +1,60 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+
+use DBI;
+use Getopt::Long;
+
+my $config = "$ENV{'HOME'}/.my.cnf";
+my $help;
+
+usage() if (!GetOptions(
+   "config=s" => \$config,
+   "help!" => \$help
+   ) or defined $help);
+
+sub usage
+{
+   print "Unknown option: @_\n" if ( @_ );
+   print "Usage: $0 [--config <MYSQL_FILE>] [--help]\n";
+
+   exit;
+}
+
+my $dbh = DBI->connect("DBI:mysql:;mysql_read_default_file=$config", undef, undef, {
+   AutoCommit => 0,
+   RaiseError => 1,
+   PrintError => 0
+}) or die DBI->errstr;
+
+my $results;
+my $row;
+
+$results = $dbh->selectall_arrayref("SHOW SLAVE STATUS", { Slice => {} });
+foreach $row (@$results) {
+   my $master_server_id = $row->{Master_Server_Id};
+
+   my $slave_io_state = $row->{Slave_IO_State};
+   my $slave_io_running = $row->{Slave_IO_Running};
+   my $slave_sql_running = $row->{Slave_SQL_Running};
+   my $last_errno = $row->{Last_Errno};
+   my $last_error = $row->{Last_Error};
+   my $seconds_behind_master $row->{Seconds_Behind_Master};
+   my $last_io_errno = $row->{Last_IO_Errno};
+   my $last_io_error = $row->{Last_IO_Error};
+   my $last_sql_errno = $row->{Last_SQL_Errno};
+   my $last_sql_error = $row->{Last_SQL_Error};
+
+   print("- mysql.slave.slave_io_state[$master_server_id] $slave_io_state\n");
+   print("- mysql.slave.slave_io_running[$master_server_id] $slave_io_running\n");
+   print("- mysql.slave.slave_sql_running[$master_server_id] $slave_sql_running\n");
+   print("- mysql.slave.last_errno[$master_server_id] $last_errno\n");
+   print("- mysql.slave.last_error[$master_server_id] $last_error\n");
+   print("- mysql.slave.last_io_errno[$master_server_id] $last_io_errno\n");
+   print("- mysql.slave.last_io_error[$master_server_id] $last_io_error\n");
+   print("- mysql.slave.last_sql_errno[$master_server_id] $last_sql_errno\n");
+   print("- mysql.slave.last_sql_error[$master_server_id] $last_sql_error\n");
+}
+
+$dbh->disconnect;

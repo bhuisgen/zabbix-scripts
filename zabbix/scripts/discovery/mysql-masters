@@ -1,0 +1,17 @@
+#!/bin/sh
+
+export HOME=/var/lib/zabbix
+
+DEFAULTS_FILE=/var/lib/zabbix/.my.cnf
+
+CONFIG_FILE=/etc/zabbix/scripts/trapper/mysql.conf
+
+[ -r "$CONFIG_FILE" ] && . $CONFIG_FILE
+
+GETMASTER="SHOW SLAVE STATUS";
+
+for master in $(mysql --defaults-file=${DEFAULTS_FILE} -e "${GETMASTER}" --skip-column-name 2> /dev/null|grep Master_Slave_Id|awk '{print $2}'); do
+    data="$data,"'{"{#MASTERID}":"'$master'"}'
+done
+
+echo '{"data":['${data#,}' ]}'

@@ -1,0 +1,37 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+
+use Getopt::Long;
+
+my $tripwire = "sudo /usr/sbin/tripwire";
+
+my $debug;
+my $help;
+
+usage() if (!GetOptions(
+      'debug!' => \$debug,
+      'help!' => \$help,
+      ) or defined $help);
+
+sub usage
+{
+   print "Unknown option: @_\n" if ( @_ );
+   print "Usage: $0 [--debug] [--help]\n";
+
+   exit;
+}
+
+print "DEBUG: checking report\n" if $debug;
+open TRIPWIRE,"$tripwire --check --quiet 2>&1|" or exit 1;
+while (<TRIPWIRE>) {
+   next unless /Total violations found:\s*([0-9]+)/;
+
+   print "$1\n";
+   exit 0;
+}
+close TRIPWIRE;
+
+print "0\n";
+exit 0;

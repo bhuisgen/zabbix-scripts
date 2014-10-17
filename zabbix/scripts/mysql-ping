@@ -1,0 +1,48 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+
+use DBI;
+use Getopt::Long;
+
+my $config = "$ENV{'HOME'}/.my.cnf";
+my $help;
+
+usage() if (!GetOptions(
+   "config=s" => \$config,
+   "help!" => \$help
+   ) or defined $help);
+
+sub usage
+{
+   print "Unknown option: @_\n" if ( @_ );
+   print "Usage: $0 [--config <MYSQL_FILE>] [--help]\n";
+
+   exit;
+}
+
+my $dbh = DBI->connect("DBI:mysql:;mysql_read_default_file=$config", undef, undef, {
+   AutoCommit => 0,
+   RaiseError => 1,
+   PrintError => 0
+}) or die DBI->errstr;
+
+$dbh->{HandleError} = sub {
+	my $error = shift;
+
+	print "0";
+	exit 1;
+};
+
+my $value = selectrow_array("SELECT 1");
+
+$dbh->disconnect;
+
+if ($value != "1") {
+   print "0"
+   exit;
+}
+
+print "1"
+exit;

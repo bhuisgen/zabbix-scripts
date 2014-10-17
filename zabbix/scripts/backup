@@ -1,0 +1,93 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+
+use File::Find;
+use File::Util;
+use Getopt::Long;
+use Time::Piece;
+use Time::Seconds;
+
+use POSIX qw(strftime);
+
+my $directory;
+my $days = 0;
+my $minfiles = 0;
+my $debug;
+my $help;
+
+usage() if ((@ARGV+1 < 2) or
+   !GetOptions(
+      'directory=s' => \$directory,
+      'days=s' => \$days,
+      'minfiles=s' => \$minfiles,
+      'debug!' => \$debug,
+      'help!' => \$help,
+      ) or defined $help);
+
+sub usage
+{
+   print "Unknown option: @_\n" if ( @_ );
+   print "Usage: $0 --directory <path> [--days <count>] [--minfiles <count>] [--debug] [--help]\n";
+
+   exit;
+}
+
+sub zabbix_exit
+{
+   my ($status, $output, $errormsg) = @_;
+
+   print "DEBUG: $errormsg\n" if $debug;
+   print "$output\n";
+
+   exit $status;
+}
+
+my $yesterday = localtime() - ($days * ONE_DAY);
+my $date = $yesterday->strftime("%Y%m%d");
+
+opendir(ROOTDIR, $directory) or zabbix_exit(0, 1, "backup error, root directory not found");
+while (my $item = readdir(ROOTDIR)) {
+   next if ($item =~ m/^\./);
+
+   my $dir = "$directory" . File::Util->SL . "$item";
+   my $count = 0;
+   my $error = 0;
+
+   next if (!-d $dir);
+
+   my $subdir = $dir . File::Util->SL . $date;
+   print "DEBUG: checking directory $subdir\n" if $debug;
+
+   opendir (SUBDIR, $subdir) or zabbix_exit(0, 2, "backup job failed, job not executed");
+   while (my $file = readdir(SUBDIR)) {
+      next if ($file =~ m/^\./);
+
+      if ($file =~ m/^error$/) {
+         $error = 1;
+
+         last;
+      }
+
+      $count++;
+   }
+
+   close SUBDIR;
+
+   if ($error != 0) {
+      zabbix_exit(0, 3, "backup job failed, error during execution");
+      exit 0;
+   }
+
+   if ($count == 0) {
+      zabbix_exit(0, 4, "backup job failed, no files found");
+   }
+
+   if (($minfiles > 0) && ($minfiles > $count)) {
+      zabbix_exit(0, 5, "backup job failed,  minimum files count not reached");
+   }
+}
+close ROOTDIR;
+
+zabbix_exit(0, 0, "backup done");

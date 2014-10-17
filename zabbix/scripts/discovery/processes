@@ -1,0 +1,23 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+ 
+my $first = 1;
+ 
+print "{\n";
+print "\t\"data\":[\n\n";
+ 
+for (`ps --no-headers axo comm | sort | uniq -c`) {
+  my ($procname) = m/^\s*[0-9]+ (\S+)/;
+
+  print "\t,\n" if not $first;
+  $first = 0;
+
+  print "\t{\n";
+  print "\t\t\"{#PROCNAME}\":\"$procname\"\n";
+  print "\t}\n";
+}
+ 
+print "\n\t]\n";
+print "}\n";

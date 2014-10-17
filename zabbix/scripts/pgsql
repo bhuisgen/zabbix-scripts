@@ -1,0 +1,95 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+
+use DBI;
+use DBD::Pg;
+use Getopt::Long;
+
+my $host = "localhost";
+my $port = "5432";
+my $user = "zabbix";
+my $database = "postgres";
+my $help;
+
+usage() if (!GetOptions(
+   "h=s" => \$host,
+   "p=s" => \$port,
+   "U=s" => \$user,
+   "d=s" => \$database,
+   'help!' => \$help
+   ) or defined $help);
+
+sub usage
+{
+   print "Unknown option: @_\n" if ( @_ );
+   print "Usage: $0 [-h <HOST>] [-p <PORT>] [-U <USER>] [-d <DATABASE>] [--help]\n";
+
+   exit;
+}
+
+sub queryValue
+{
+   my ($dbh, $query, $key) = @_;
+
+   my $value = $dbh->selectrow_array($query);
+
+   return $value;
+}
+
+sub printValue
+{
+   my ($key, $value) = @_;
+
+   if ($value eq "") {
+      $value = "\"\"";
+   }
+
+   print("- $key $value\n");
+}
+
+my $dbh = DBI->connect("DBI:Pg:dbname=$database;host=$host;port=$port", $user, undef, {
+   AutoCommit => 0,
+   RaiseError => 1,
+   PrintError => 0
+}) or die DBI->errstr;
+
+my $version = queryValue($dbh, "SELECT version()");
+$version =~ /PostgreSQL (\d+\.\d+)\.(\d+)/;
+my ($major, $minor) = ($1,$2);
+
+printValue("pgsql.variable[version]", $version);
+printValue("pgsql.variable[version_major]", $major);
+printValue("pgsql.variable[version_minor]", $minor);
+printValue("pgsql.variable[max_connections]", queryValue($dbh, "SHOW max_connections"));
+
+printValue("pgsql.status[connections]", queryValue($dbh, "SELECT COUNT(1) FROM pg_stat_activity"));
+unless ($major ~~ ["9.1"]) {
+   printValue("pgsql.status[connections_active]", queryValue($dbh, "SELECT COUNT(state) FROM pg_stat_activity WHERE state='active'"));
+   printValue("pgsql.status[connections_idle]", queryValue($dbh, "SELECT COUNT(state) FROM pg_stat_activity WHERE state='idle'"));
+   printValue("pgsql.status[connections_idle_in_transaction]", queryValue($dbh, "SELECT COUNT(state) FROM pg_stat_activity WHERE state='idle in transaction'"));
+   printValue("pgsql.status[connections_lock_waiting]", queryValue($dbh, "SELECT COUNT(*) FROM pg_stat_activity WHERE waiting='t'"));
+}
+
+printValue("pgsql.status[xact_commit]", queryValue($dbh, "SELECT SUM(xact_commit) FROM pg_stat_database"));
+printValue("pgsql.status[xact_rollback]", queryValue($dbh, "SELECT SUM(xact_rollback) FROM pg_stat_database"));
+
+printValue("pgsql.status[checkpoints_timed]", queryValue($dbh, "SELECT checkpoints_timed FROM pg_stat_bgwriter"));
+printValue("pgsql.status[checkpoints_req]", queryValue($dbh, "SELECT checkpoints_req FROM pg_stat_bgwriter"));
+printValue("pgsql.status[buffers_checkpoint]", queryValue($dbh, "SELECT buffers_checkpoint FROM pg_stat_bgwriter"));
+printValue("pgsql.status[buffers_clean]", queryValue($dbh, "SELECT buffers_clean FROM pg_stat_bgwriter"));
+printValue("pgsql.status[maxwritten_clean]", queryValue($dbh, "SELECT maxwritten_clean FROM pg_stat_bgwriter"));
+printValue("pgsql.status[buffers_backend]", queryValue($dbh, "SELECT buffers_backend FROM pg_stat_bgwriter"));
+printValue("pgsql.status[buffers_backend_fsync]", queryValue($dbh, "SELECT buffers_backend_fsync FROM pg_stat_bgwriter"));
+printValue("pgsql.status[buffers_alloc]", queryValue($dbh, "SELECT buffers_alloc FROM pg_stat_bgwriter"));
+
+unless ($major ~~ ["9.1"]) {
+   printValue("pgsql.status[slow_queries]", queryValue($dbh, "SELECT COUNT(1) FROM pg_stat_activity WHERE state='active' AND now()-query_start > '4 sec'::interval"));
+   printValue("pgsql.status[slow_select_queries]", queryValue($dbh, "SELECT COUNT(*) FROM pg_stat_activity WHERE state='active' AND now()-query_start > '4 sec'::interval AND query ILIKE 'SELECT%'"));
+   printValue("pgsql.status[slow_insert_queries]", queryValue($dbh, "SELECT COUNT(*) FROM pg_stat_activity WHERE state='active' AND now()-query_start > '4 sec'::interval AND query ILIKE 'INSERT%'"));
+   printValue("pgsql.status[slow_update_queries]", queryValue($dbh, "SELECT COUNT(*) FROM pg_stat_activity WHERE state='active' AND now()-query_start > '4 sec'::interval AND query ILIKE 'UPDATE%'"));  
+   printValue("pgsql.status[slow_delete_queries]", queryValue($dbh, "SELECT COUNT(*) FROM pg_stat_activity WHERE state='active' AND now()-query_start > '4 sec'::interval AND query ILIKE 'DELETE%'"));
+}
+
+$dbh->disconnect;

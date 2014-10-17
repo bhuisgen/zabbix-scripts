@@ -1,0 +1,45 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+
+use DBI;
+use Getopt::Long;
+
+my $config = "$ENV{'HOME'}/.my.cnf";
+my $help;
+
+usage() if (!GetOptions(
+   "config=s" => \$config,
+   "help!" => \$help
+   ) or defined $help);
+
+sub usage
+{
+   print "Unknown option: @_\n" if ( @_ );
+   print "Usage: $0 [--config <MYSQL_FILE>] [--help]\n";
+
+   exit;
+}
+
+my $dbh = DBI->connect("DBI:mysql:;mysql_read_default_file=$config", undef, undef, {
+   AutoCommit => 0,
+   RaiseError => 1,
+   PrintError => 0
+}) or die DBI->errstr;
+
+my $results = $dbh->selectall_hashref("SELECT table_schema, SUM(data_length+index_length) AS size, SUM(data_length) AS data_size, SUM(index_length) AS index_size, IFNULL(ROUND(SUM(index_length)/SUM(data_length), 2), 0) AS ratio FROM information_schema.TABLES WHERE table_schema NOT IN ('information_schema', 'performance_schema') GROUP BY table_schema", 1);
+foreach my $key (keys %$results) {
+   my $db = $results->{$key}{table_schema};
+   my $size = $results->{$key}{size};
+   my $data = $results->{$key}{data_size};
+   my $index = $results->{$key}{index_size};
+   my $ratio = $results->{$key}{ratio};
+
+   print("- mysql.database.size[$db] $size\n");
+   print("- mysql.database.data[$db] $data\n");
+   print("- mysql.database.index[$db] $index\n");
+   print("- mysql.database.ratio[$db] $ratio\n");
+}
+
+$dbh->disconnect;

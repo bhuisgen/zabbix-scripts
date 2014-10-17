@@ -1,0 +1,20 @@
+#!/bin/sh
+
+ZABBIX_SENDER=/usr/bin/zabbix_sender
+ZABBIX_CONF=/etc/zabbix/zabbix_agentd.conf
+
+CONFIG_FILE=/etc/zabbix/scripts/trapper/aptitude.conf
+
+[ -r "$CONFIG_FILE" ] && . $CONFIG_FILE
+
+zsend () {
+   $ZABBIX_SENDER -c $ZABBIX_CONF -k "$1" -o "$2" 2>&1 >/dev/null
+}
+
+KEY="custom."`basename $0`
+VALUE=$(/etc/zabbix/scripts/aptitude --update)
+if [ "$?" -ne "0" ]; then
+   exit 1
+fi
+
+zsend $KEY $VALUE

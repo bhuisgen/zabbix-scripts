@@ -1,0 +1,70 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+
+use Getopt::Long;
+
+my $aptitude = "sudo /usr/bin/aptitude";
+
+my $update;
+my $debug;
+my $help;
+
+usage() if (!GetOptions(
+      'update!' => \$update,
+      'debug!' => \$debug,
+      'help!' => \$help,
+      ) or defined $help);
+
+sub usage
+{
+   print "Unknown option: @_\n" if ( @_ );
+   print "Usage: $0 [--update] [--debug] [--help]\n";
+
+   exit;
+}
+
+my (%stable,%security,%other);
+
+if ($update) {
+   print "DEBUG: updating repositories\n" if $debug;
+
+   open APTITUDE,"$aptitude update 2>&1|" or exit 1;
+   while (<APTITUDE>) {
+      exit 2 if /E: /;
+   }
+   close APTITUDE;
+}
+
+print "DEBUG: checking updates\n" if $debug;
+open APTITUDE,"$aptitude -v -y -s safe-upgrade 2>&1|" or exit 3;
+while (<APTITUDE>) {
+   next unless /Inst (.+) .+\((.+) (.+)\)/;
+
+   my ($pkg,$ver,$release) = ($1, $2, $3);
+
+   $release = 'stable' if $release =~ /stable$/ && $release !~/security/i;
+   $release = 'security' if $release =~ /security/i;
+
+   if ($release eq 'stable') {
+      $stable{$pkg} = $ver;
+   } elsif ($release eq 'security') {
+      $security{$pkg} = $ver;
+   } else {
+      $other{$pkg}=$ver;
+   }
+}
+close APTITUDE;
+
+my $info = '';
+if (keys (%security)) {
+	print "1\n";
+	exit 0;
+} elsif (keys (%other) or keys(%stable)) {
+	print "2\n";
+	exit 0;
+}
+
+print "0\n";
+exit 0,

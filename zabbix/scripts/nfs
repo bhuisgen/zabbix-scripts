@@ -1,0 +1,29 @@
+#!/bin/bash
+#
+# nfs.sh
+#
+
+NFS_SERVER=$1
+NFS_SHARE=$2
+NFS_MOUNT=$3
+
+[ $# -ne 3 ] && exit 1
+[ -z "$NFS_SERVER" ] && exit 1
+[ -z "$NFS_SHARE" ] && exit 1
+[ -z "$NFS_MOUNT" ] && exit 1
+
+[ ! -f "/proc/mounts" ] && echo "1" && exit 0
+[ ! -d "$NFS_MOUNT" ] && echo "2" && exit 0
+if ! cd $NFS_MOUNT; then
+   echo "3" && exit 0
+fi
+
+MOUNT=$(grep "$NFS_MOUNT nfs" /proc/mounts)
+[ -z "$MOUNT" ] && echo "4" && exit 0
+[ $(echo $MOUNT|wc -l) -ne 1 ] && echo "5" && exit 0
+NFS_SERVER_CURRENT=$(echo $MOUNT|cut -d':' -f1)
+NFS_SHARE_CURRENT=$(echo $MOUNT|cut -d' ' -f1|cut -d':' -f2)
+[ "$NFS_SERVER" != "$NFS_SERVER_CURRENT" ] && echo "6" && exit 0
+[ "$NFS_SHARE" != "$NFS_SHARE_CURRENT" ] && echo "7" && exit 0
+
+echo 0

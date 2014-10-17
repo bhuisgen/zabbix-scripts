@@ -1,0 +1,24 @@
+#!/bin/sh
+
+export HOME=/var/lib/zabbix
+
+PGSQL_HOST=localhost
+PGSQL_PORT=5432
+PGSQL_USER=zabbix
+PGSQL_DATABASE=postgres
+
+CONFIG_FILE=/etc/zabbix/scripts/trapper/pgsql.conf
+
+[ -r "$CONFIG_FILE" ] && . $CONFIG_FILE
+
+GETDB="SELECT datname FROM pg_database WHERE datistemplate = 'f';"
+
+GETTABLE="SELECT '\"{#DATABASE}\":\"' || current_database() || '\",\"{#SCHEMA}\":\"' || schemaname || '\",\"{#TABLE}\":\"' || tablename || '\"' FROM pg_tables WHERE schemaname NOT IN ('pg_catalog','information_schema')"
+
+for db in $(psql -h $PGSQL_HOST -p $PGSQL_PORT -U $PGSQL_USER -d $PGSQL_DATABASE -t -c "${GETDB}"); do
+    for table in $(psql -h $PGSQL_HOST -p $PGSQL_PORT -U $PGSQL_USER -d $db -t -c "${GETTABLE}"); do
+	   	dblist="$dblist,"'{'$table'}'
+    done
+done
+
+echo '{"data":['${dblist#,}' ]}'
